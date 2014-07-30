@@ -2,7 +2,13 @@ require 'spec_helper'
 require 'omniauth-linkedin-oauth2'
 
 describe OmniAuth::Strategies::LinkedIn do
+
   subject { OmniAuth::Strategies::LinkedIn.new(nil) }
+
+  let(:option_fields) {
+    %w[ id email-address first-name last-name headline location industry picture-url
+        public-profile-url ]
+  }
 
   it 'should add a camelization for itself' do
     expect(OmniAuth::Utils.camelize('linkedin')).to eq('LinkedIn')
@@ -14,11 +20,11 @@ describe OmniAuth::Strategies::LinkedIn do
     end
 
     it 'has correct authorize url' do
-      expect(subject.client.options[:authorize_url]).to eq('https://www.linkedin.com/uas/oauth2/authorization?response_type=code')
+      expect(subject.client.authorize_url).to eq('https://www.linkedin.com/uas/oauth2/authorization?response_type=code')
     end
 
     it 'has correct token url' do
-      expect(subject.client.options[:token_url]).to eq('https://www.linkedin.com/uas/oauth2/accessToken')
+      expect(subject.client.token_url).to eq('https://www.linkedin.com/uas/oauth2/accessToken')
     end
   end
 
@@ -46,7 +52,6 @@ describe OmniAuth::Strategies::LinkedIn do
     context 'and therefore has all the necessary fields' do
       it { expect(subject.info).to have_key :name }
       it { expect(subject.info).to have_key :email }
-      it { expect(subject.info).to have_key :nickname }
       it { expect(subject.info).to have_key :first_name }
       it { expect(subject.info).to have_key :last_name }
       it { expect(subject.info).to have_key :location }
@@ -54,14 +59,6 @@ describe OmniAuth::Strategies::LinkedIn do
       it { expect(subject.info).to have_key :image }
       it { expect(subject.info).to have_key :urls }
     end
-  end
-
-  describe '#extra' do
-    before :each do
-      allow(subject).to receive(:raw_info) { { :foo => 'bar' } }
-    end
-
-    it { expect(subject.extra['raw_info']).to eq({ :foo => 'bar' }) }
   end
 
   describe '#access_token' do
@@ -76,10 +73,9 @@ describe OmniAuth::Strategies::LinkedIn do
   describe '#raw_info' do
     before :each do
       access_token = double('access token')
-      response = double('response', :parsed => { :foo => 'bar' })
-      expect(access_token).to receive(:get).with("/v1/people/~:(baz,qux)?format=json").and_return(response)
+      response     = double('response', parsed: { foo: 'bar' })
+      expect(access_token).to receive(:get).with("/v1/people/~:(#{option_fields.join(',')})?format=json").and_return(response)
 
-      allow(subject).to receive(:option_fields) { ['baz', 'qux'] }
       allow(subject).to receive(:access_token) { access_token }
     end
 
@@ -102,20 +98,17 @@ describe OmniAuth::Strategies::LinkedIn do
 
   describe '#option_fields' do
     it 'returns options fields' do
-      subject.stub(:options => double('options', :fields => ['foo', 'bar']).as_null_object)
-      expect(subject.send(:option_fields)).to eq(['foo', 'bar'])
+      expect(subject.send(:option_fields)).to include(option_fields.join(','))
     end
 
     it 'http avatar image by default' do
-      subject.stub(:options => double('options', :fields => ['picture-url']))
-      allow(subject.options).to receive(:[]).with(:secure_image_url).and_return(false)
-      expect(subject.send(:option_fields)).to eq(['picture-url'])
+      subject.options[:secure_image_url] = false
+      expect(subject.send(:option_fields)).to include('picture-url')
     end
 
     it 'https avatar image if secure_image_url truthy' do
-      subject.stub(:options => double('options', :fields => ['picture-url']))
-      allow(subject.options).to receive(:[]).with(:secure_image_url).and_return(true)
-      expect(subject.send(:option_fields)).to eq(['picture-url;secure=true'])
+      subject.options[:secure_image_url] = true
+      expect(subject.send(:option_fields)).to include('picture-url;secure=true')
     end
   end
 end
